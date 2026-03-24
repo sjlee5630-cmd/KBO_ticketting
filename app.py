@@ -1,173 +1,156 @@
 import streamlit as st
 import calendar
 from datetime import date, timedelta
+import pandas as pd
 
-# ── 페이지 설정 ──────────────────────────────────────────────
 st.set_page_config(
-    page_title="SSG 랜더스 2026 일정",
+    page_title="SSG 랜더스 2026",
     page_icon="⚾",
     layout="wide",
 )
 
-# ── CSS ─────────────────────────────────────────────────────
+# ── 전역 CSS ─────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
-
-html, body, [class*="css"] { font-family: 'Noto Sans KR', sans-serif; }
-
-/* 달력 전체 컨테이너 */
-.cal-wrap { border-radius: 12px; overflow: hidden; border: 1px solid #e0e0e0; }
-
-/* 요일 헤더 */
-.cal-header {
-    display: grid; grid-template-columns: repeat(7, 1fr);
-    background: #CC0000; color: white; text-align: center;
-    font-size: 13px; font-weight: 500;
+/* 사이드바 배경 */
+[data-testid="stSidebar"] {
+    background: #1a1a2e !important;
 }
-.cal-header div { padding: 8px 4px; }
-
-/* 날짜 그리드 */
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); background: #f5f5f5; gap: 1px; }
-
-/* 개별 날짜 셀 */
-.cal-cell {
-    background: white; min-height: 80px; padding: 6px;
-    font-size: 12px; position: relative; vertical-align: top;
-}
-.cal-cell.empty { background: #fafafa; }
-.cal-cell.today { background: #fff8f0; }
-
-/* 날짜 숫자 */
-.day-num { font-size: 13px; font-weight: 500; color: #333; margin-bottom: 3px; }
-.day-num.sun { color: #cc0000; }
-.day-num.sat { color: #1a56db; }
-
-/* 경기 뱃지 */
-.game-badge {
-    display: block; border-radius: 6px; padding: 3px 5px;
-    font-size: 11px; line-height: 1.3; margin-bottom: 2px;
-    text-decoration: none; color: inherit;
-}
-.badge-home {
-    background: #fff0ee; border-left: 3px solid #CC0000; color: #7a0000;
-}
-.badge-away {
-    background: #eef3ff; border-left: 3px solid #1a56db; color: #1a3a7a;
-}
-.badge-hot::after { content: " 🔥"; }
-.badge-special {
-    background: #f0f0f0; color: #555; font-style: italic;
-    border-left: 3px solid #aaa;
+[data-testid="stSidebar"] * {
+    color: #ffffff !important;
 }
 
-/* 범례 */
-.legend-wrap { display: flex; gap: 16px; align-items: center; font-size: 13px; }
-.legend-dot { width: 14px; height: 14px; border-radius: 3px; display: inline-block; margin-right: 4px; vertical-align: middle; }
-
-/* 팝업 정보 카드 */
-.info-card {
-    background: white; border-radius: 10px; padding: 16px;
-    border: 1px solid #ddd; margin-top: 8px;
+/* 사이드바 월 버튼 공통 */
+.month-btn {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    margin-bottom: 6px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    border: 1.5px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
+    color: #cccccc !important;
+    transition: all 0.15s;
 }
-.info-title { font-size: 15px; font-weight: 700; color: #CC0000; margin-bottom: 6px; }
-.info-row { font-size: 13px; margin-bottom: 4px; color: #333; }
-.info-row b { color: #111; }
-
-/* 사이드바 */
-[data-testid="stSidebar"] { background: #1a1a2e; }
-[data-testid="stSidebar"] * { color: white !important; }
-
-/* 월 네비게이션 버튼 */
-div[data-testid="column"] button {
-    border-radius: 8px; font-size: 14px;
+.month-btn:hover {
+    background: rgba(255,255,255,0.12);
+    color: #ffffff !important;
+}
+.month-btn.active {
+    background: #CC0000 !important;
+    border-color: #CC0000 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+}
+.month-btn .month-num {
+    font-size: 18px;
+    font-weight: 700;
+    margin-right: 6px;
+}
+.month-btn .game-count {
+    float: right;
+    font-size: 11px;
+    opacity: 0.75;
+    margin-top: 2px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-
-# ── 데이터 ───────────────────────────────────────────────────
-
+# ── 티켓팅 정보 ──────────────────────────────────────────────
 TICKET_INFO = {
     "홈": {
         "venue": "인천 SSG 랜더스필드 (문학)",
-        "선예매": "경기 7일 전 오전 10:00 (배티 회원)",
-        "일반예매": "경기 5일 전 오전 10:00",
+        "presale_days": 7,
+        "presale_time": "오전 10:00 (배티 선예매)",
+        "general_time": "오전 10:00 (일반예매, 경기 5일 전)",
         "url": "https://ticket.ssg.com",
         "url_label": "SSG 공식 티켓",
     },
     "롯데": {
         "venue": "사직야구장 (부산)",
-        "선예매": "경기 14일 전 오전 10:00 (클럽 회원)",
-        "일반예매": "경기 14일 전 오후 14:00",
+        "presale_days": 14,
+        "presale_time": "오전 10:00 (선예매) / 오후 14:00 (일반)",
+        "general_time": "오후 14:00",
         "url": "https://www.giantsclub.com",
         "url_label": "롯데 자이언츠 공식",
     },
     "LG": {
         "venue": "잠실야구장 (서울)",
-        "선예매": "경기 7~10일 전 오전 10:00 추정",
-        "일반예매": "경기 7일 전 오전 10:00 추정",
+        "presale_days": 7,
+        "presale_time": "오전 10:00 (추정)",
+        "general_time": "오전 10:00 (추정)",
         "url": "https://www.ticketlink.co.kr",
         "url_label": "티켓링크",
     },
     "두산": {
         "venue": "잠실야구장 (서울)",
-        "선예매": "경기 7~10일 전 오전 11:00 추정",
-        "일반예매": "경기 7일 전 오전 11:00 추정",
+        "presale_days": 7,
+        "presale_time": "오전 11:00 (추정)",
+        "general_time": "오전 11:00 (추정)",
         "url": "https://ticket.interpark.com",
         "url_label": "인터파크 티켓",
     },
     "키움": {
         "venue": "고척스카이돔 (서울)",
-        "선예매": "경기 7~10일 전 오전 11:00 추정",
-        "일반예매": "경기 7일 전 오전 11:00 추정",
+        "presale_days": 7,
+        "presale_time": "오전 11:00 (추정)",
+        "general_time": "오전 11:00 (추정)",
         "url": "https://ticket.interpark.com",
         "url_label": "인터파크 티켓",
     },
     "kt": {
         "venue": "수원 KT위즈파크",
-        "선예매": "경기 7~10일 전 오전 10:00 추정",
-        "일반예매": "경기 7일 전 오전 10:00 추정",
+        "presale_days": 7,
+        "presale_time": "오전 10:00 (추정)",
+        "general_time": "오전 10:00 (추정)",
         "url": "https://www.ticketlink.co.kr",
         "url_label": "티켓링크",
     },
     "한화": {
         "venue": "한화생명이글스파크 (대전)",
-        "선예매": "경기 7~10일 전 오전 10:00 추정",
-        "일반예매": "경기 7일 전 오전 10:00 추정",
+        "presale_days": 7,
+        "presale_time": "오전 10:00 (추정)",
+        "general_time": "오전 10:00 (추정)",
         "url": "https://www.ticketlink.co.kr",
         "url_label": "티켓링크",
     },
     "삼성": {
         "venue": "라이온즈파크 (대구)",
-        "선예매": "경기 7~10일 전 오전 10:00 추정",
-        "일반예매": "경기 7일 전 오전 10:00 추정",
+        "presale_days": 7,
+        "presale_time": "오전 10:00 (추정)",
+        "general_time": "오전 10:00 (추정)",
         "url": "https://www.ticketlink.co.kr",
         "url_label": "티켓링크",
     },
     "KIA": {
         "venue": "기아 챔피언스 필드 (광주)",
-        "선예매": "경기 7~10일 전 오전 10:00 추정",
-        "일반예매": "경기 7일 전 오전 10:00 추정",
+        "presale_days": 7,
+        "presale_time": "오전 10:00 (추정)",
+        "general_time": "오전 10:00 (추정)",
         "url": "https://www.ticketlink.co.kr",
         "url_label": "티켓링크",
     },
     "NC": {
         "venue": "창원 NC파크",
-        "선예매": "경기 7~10일 전 오전 11:00 추정",
-        "일반예매": "경기 7일 전 오전 11:00 추정",
+        "presale_days": 7,
+        "presale_time": "오전 11:00 (추정)",
+        "general_time": "오전 11:00 (추정)",
         "url": "https://ticket.ncdinos.com",
         "url_label": "NC 다이노스 공식",
     },
 }
 
-# 경기 일정: (월, 일, 상대, 홈/원정, 빅매치여부)
+# ── 경기 일정 (3월~10월 전체) ────────────────────────────────
 SCHEDULE_RAW = [
-    # 3월
+    # ── 3월 ──
     (3, 28, "KIA",  "홈",   True),
     (3, 29, "KIA",  "홈",   True),
     (3, 31, "키움", "홈",   False),
-    # 4월
+    # ── 4월 ──
     (4,  1, "키움", "홈",   False),
     (4,  2, "키움", "홈",   False),
     (4,  3, "롯데", "원정", False),
@@ -193,7 +176,7 @@ SCHEDULE_RAW = [
     (4, 28, "키움", "홈",   False),
     (4, 29, "키움", "홈",   False),
     (4, 30, "키움", "홈",   False),
-    # 5월
+    # ── 5월 ──
     (5,  1, "삼성", "홈",   False),
     (5,  2, "삼성", "홈",   True),
     (5,  3, "삼성", "홈",   True),
@@ -221,7 +204,7 @@ SCHEDULE_RAW = [
     (5, 29, "KIA",  "홈",   False),
     (5, 30, "KIA",  "홈",   True),
     (5, 31, "KIA",  "홈",   True),
-    # 6월
+    # ── 6월 ──
     (6,  2, "롯데", "원정", False),
     (6,  3, "롯데", "원정", False),
     (6,  4, "롯데", "원정", False),
@@ -246,7 +229,7 @@ SCHEDULE_RAW = [
     (6, 27, "kt",   "홈",   True),
     (6, 28, "kt",   "홈",   True),
     (6, 30, "KIA",  "원정", False),
-    # 7월
+    # ── 7월 ──
     (7,  1, "KIA",  "원정", False),
     (7,  2, "KIA",  "원정", False),
     (7,  3, "삼성", "홈",   False),
@@ -255,7 +238,7 @@ SCHEDULE_RAW = [
     (7,  7, "두산", "원정", False),
     (7,  8, "두산", "원정", False),
     (7,  9, "두산", "원정", False),
-    # 올스타 휴식기 7/10~15 → special 처리
+    # 7/10~13 올스타 휴식기
     (7, 14, "KIA",  "홈",   False),
     (7, 15, "KIA",  "홈",   False),
     (7, 16, "KIA",  "홈",   False),
@@ -270,7 +253,7 @@ SCHEDULE_RAW = [
     (7, 29, "두산", "홈",   False),
     (7, 30, "두산", "홈",   False),
     (7, 31, "키움", "원정", False),
-    # 8월
+    # ── 8월 ──
     (8,  1, "키움", "원정", True),
     (8,  4, "한화", "홈",   False),
     (8,  5, "한화", "홈",   False),
@@ -296,7 +279,7 @@ SCHEDULE_RAW = [
     (8, 28, "LG",   "원정", False),
     (8, 29, "LG",   "원정", True),
     (8, 30, "LG",   "원정", True),
-    # 9월
+    # ── 9월 ──
     (9,  1, "kt",   "원정", False),
     (9,  2, "kt",   "원정", False),
     (9,  3, "kt",   "원정", False),
@@ -322,247 +305,320 @@ SCHEDULE_RAW = [
     (9, 27, "LG",   "홈",   True),
     (9, 29, "kt",   "홈",   False),
     (9, 30, "kt",   "홈",   False),
+    # ── 10월 (포스트시즌 전 잔여 정규시즌) ──
+    (10,  1, "kt",   "홈",   False),
+    (10,  2, "한화", "원정", False),
+    (10,  3, "한화", "원정", True),
+    (10,  4, "한화", "원정", True),
 ]
 
-SPECIAL_DAYS = {
-    (7, 10): "올스타 휴식기",
-    (7, 11): "올스타 휴식기",
-    (7, 12): "올스타 휴식기",
-    (7, 13): "올스타 휴식기",
+SPECIAL = {
+    (7, 10): "⭐ 올스타 휴식기",
+    (7, 11): "⭐ 올스타 휴식기",
+    (7, 12): "⭐ 올스타 휴식기",
+    (7, 13): "⭐ 올스타 휴식기",
 }
 
-# 날짜 → 경기 목록 딕셔너리
-def build_schedule_dict():
+MONTHS = {
+    3:  "3월",
+    4:  "4월",
+    5:  "5월",
+    6:  "6월",
+    7:  "7월",
+    8:  "8월",
+    9:  "9월",
+    10: "10월",
+}
+
+DOW_KR = ["월", "화", "수", "목", "금", "토", "일"]
+
+
+def build_sched():
     d = {}
     for m, day, opp, loc, hot in SCHEDULE_RAW:
-        key = (m, day)
-        if key not in d:
-            d[key] = []
-        d[key].append({"opp": opp, "loc": loc, "hot": hot})
+        d.setdefault((m, day), []).append({"opp": opp, "loc": loc, "hot": hot})
     return d
 
-SCHEDULE = build_schedule_dict()
 
-def get_ticket_info(game):
-    """경기 딕셔너리에서 티켓팅 정보 반환"""
-    if game["loc"] == "홈":
-        return TICKET_INFO["홈"]
-    else:
-        return TICKET_INFO.get(game["opp"], None)
+SCHEDULE = build_sched()
 
-def calc_presale_date(m, d):
-    """배티 선예매: 7일 전"""
-    dt = date(2026, m, d) - timedelta(days=7)
-    return dt.strftime("%-m월 %-d일")
 
-def calc_away_presale_date(m, d, opp):
-    """원정 선예매 날짜"""
-    days = 14 if opp == "롯데" else 7
+def count_games(month_num):
+    return sum(1 for (m, _), gs in SCHEDULE.items() for _ in gs if m == month_num)
+
+
+def fmt_date(dt):
+    return "{0}월 {1}일".format(dt.month, dt.day)
+
+
+def presale_date_str(m, d, ti_key):
+    days = TICKET_INFO.get(ti_key, {}).get("presale_days", 7)
     dt = date(2026, m, d) - timedelta(days=days)
-    return dt.strftime("%-m월 %-d일")
+    return fmt_date(dt)
+
+
+# ── 달력 HTML ────────────────────────────────────────────────
+def render_calendar_html(month):
+    cal = calendar.monthcalendar(2026, month)
+    dow_labels = DOW_KR
+
+    header_cells = ""
+    for i, label in enumerate(dow_labels):
+        txt_color = "#ffaaaa" if i == 6 else ("#aaccff" if i == 5 else "white")
+        header_cells += (
+            '<th style="background:#CC0000;color:{c};padding:10px 4px;'
+            'font-size:13px;font-weight:600;text-align:center;letter-spacing:1px;">'
+            "{l}</th>"
+        ).format(c=txt_color, l=label)
+
+    body_rows = ""
+    for week in cal:
+        cells = ""
+        for wi, day in enumerate(week):
+            if day == 0:
+                cells += (
+                    '<td style="background:#f5f5f5;min-height:80px;'
+                    'border:1px solid #e8e8e8;padding:6px;"></td>'
+                )
+                continue
+
+            is_sun = wi == 6
+            is_sat = wi == 5
+            num_color = "#cc0000" if is_sun else ("#1a56db" if is_sat else "#1a1a1a")
+            cell_bg = "#fffaf9" if is_sun else ("#f5f8ff" if is_sat else "#ffffff")
+
+            inner = (
+                '<div style="font-size:14px;font-weight:700;'
+                'color:{c};margin-bottom:4px;">{d}</div>'
+            ).format(c=num_color, d=day)
+
+            sp = SPECIAL.get((month, day))
+            if sp:
+                inner += (
+                    '<div style="font-size:10px;background:#ffe8b2;color:#7a5000;'
+                    'border-radius:4px;padding:2px 5px;margin-bottom:3px;'
+                    'font-weight:600;">{s}</div>'
+                ).format(s=sp)
+
+            for g in SCHEDULE.get((month, day), []):
+                opp = g["opp"]
+                loc = g["loc"]
+                hot_str = " 🔥" if g["hot"] else ""
+                ti_key = "홈" if loc == "홈" else opp
+                url = TICKET_INFO.get(ti_key, {}).get("url", "#")
+
+                if loc == "홈":
+                    bg = "#fff0ee"
+                    border = "#CC0000"
+                    color = "#7a0000"
+                    label = "홈 vs {o}{h}".format(o=opp, h=hot_str)
+                else:
+                    bg = "#eef3ff"
+                    border = "#1a56db"
+                    color = "#1a3a7a"
+                    label = "원정 @{o}{h}".format(o=opp, h=hot_str)
+
+                inner += (
+                    '<a href="{url}" target="_blank" '
+                    'style="display:block;background:{bg};'
+                    'border-left:3px solid {brd};'
+                    'color:{c};text-decoration:none;font-size:11px;'
+                    'padding:3px 5px;border-radius:3px;margin-bottom:3px;'
+                    'line-height:1.4;font-weight:500;">'
+                    "{lbl}</a>"
+                ).format(url=url, bg=bg, brd=border, c=color, lbl=label)
+
+            cells += (
+                '<td style="background:{bg};vertical-align:top;padding:6px;'
+                'min-height:80px;border:1px solid #e8e8e8;width:14.28%;">'
+                "{inner}</td>"
+            ).format(bg=cell_bg, inner=inner)
+
+        body_rows += "<tr>{cells}</tr>".format(cells=cells)
+
+    return (
+        '<div style="border-radius:10px;overflow:hidden;'
+        'box-shadow:0 2px 8px rgba(0,0,0,0.10);margin-bottom:4px;">'
+        '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">'
+        "<thead><tr>{hdr}</tr></thead>"
+        "<tbody>{body}</tbody>"
+        "</table></div>"
+    ).format(hdr=header_cells, body=body_rows)
+
+
+# ── Session State 초기화 ─────────────────────────────────────
+if "sel_month" not in st.session_state:
+    st.session_state.sel_month = 3
 
 
 # ── 사이드바 ────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## ⚾ SSG 랜더스 2026")
-    st.markdown("---")
+    st.markdown(
+        '<div style="text-align:center;padding:16px 0 8px;">'
+        '<div style="font-size:32px;">⚾</div>'
+        '<div style="font-size:17px;font-weight:700;color:#ffffff;margin-top:4px;">'
+        "SSG 랜더스</div>"
+        '<div style="font-size:12px;color:#aaaaaa;margin-top:2px;">2026 시즌 일정</div>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.15);margin:8px 0 14px;">',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div style="font-size:11px;color:#aaaaaa;letter-spacing:1px;'
+        'margin-bottom:10px;padding-left:4px;">월 선택</div>',
+        unsafe_allow_html=True,
+    )
 
-    st.markdown("### 월 선택")
-    month_names = ["3월", "4월", "5월", "6월", "7월", "8월", "9월"]
-    month_map = {n: i + 3 for i, n in enumerate(month_names)}
-
-    if "selected_month" not in st.session_state:
-        st.session_state.selected_month = 3
-
-    for name in month_names:
-        active = st.session_state.selected_month == month_map[name]
-        if st.button(name, key=f"btn_{name}", use_container_width=True,
-                     type="primary" if active else "secondary"):
-            st.session_state.selected_month = month_map[name]
-            st.session_state.selected_game = None
-
-    st.markdown("---")
-    st.markdown("### 범례")
-    st.markdown("""
-<div style='font-size:13px;line-height:2'>
-🔴 <b>홈경기</b> (인천 문학)<br>
-🔵 <b>원정경기</b><br>
-🔥 <b>주말 / 빅매치</b>
-</div>
-""", unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("### 배티 선예매 안내")
-    st.info("경기 **7일 전** 오전 10:00\n\nSSG 공식 앱 / ticket.ssg.com")
-
-
-# ── 메인 ────────────────────────────────────────────────────
-sel_month = st.session_state.selected_month
-month_label = {3:"3월",4:"4월",5:"5월",6:"6월",7:"7월",8:"8월",9:"9월"}
-
-st.markdown(f"## ⚾ SSG 랜더스 2026 — {month_label[sel_month]} 경기 일정")
-
-# 선택된 경기 초기화
-if "selected_game" not in st.session_state:
-    st.session_state.selected_game = None
-
-# ── 달력 렌더링 ───────────────────────────────────────────
-cal = calendar.monthcalendar(2026, sel_month)
-weekdays = ["월", "화", "수", "목", "금", "토", "일"]
-
-# 헤더
-header_html = '<div class="cal-wrap"><div class="cal-header">'
-for i, w in enumerate(weekdays):
-    color = "#ffcccc" if i == 6 else ("#ccd9ff" if i == 5 else "white")
-    header_html += f'<div style="color:{color}">{w}</div>'
-header_html += '</div><div class="cal-grid">'
-
-# 셀 생성
-today = date.today()
-cells_html = ""
-game_buttons = []  # (cell_key, game_info) 저장
-
-for week in cal:
-    for wi, day in enumerate(week):
-        if day == 0:
-            cells_html += '<div class="cal-cell empty"></div>'
-            continue
-
-        is_today = (date(2026, sel_month, day) == today)
-        is_sun = (wi == 6)
-        is_sat = (wi == 5)
-        cell_class = "cal-cell" + (" today" if is_today else "")
-
-        # 날짜 숫자 색
-        num_class = "day-num" + (" sun" if is_sun else (" sat" if is_sat else ""))
-        cell_inner = f'<div class="{num_class}">{day}</div>'
-
-        # 특별일정 (올스타 등)
-        special = SPECIAL_DAYS.get((sel_month, day))
-        if special:
-            cell_inner += f'<span class="game-badge badge-special">{special}</span>'
-
-        # 경기 뱃지
-        games_today = SCHEDULE.get((sel_month, day), [])
-        for g in games_today:
-            hot_cls = " badge-hot" if g["hot"] else ""
-            loc = g["loc"]
-            opp = g["opp"]
-            ti = get_ticket_info(g)
-            url = ti["url"] if ti else "#"
-            if loc == "홈":
-                badge_cls = f"game-badge badge-home{hot_cls}"
-                label = f"홈 vs {opp}"
-            else:
-                badge_cls = f"game-badge badge-away{hot_cls}"
-                label = f"원정 @{opp}"
-            cell_inner += (
-                f'<a href="{url}" target="_blank" class="{badge_cls}" '
-                f'title="{label} 티켓팅 →">{label}</a>'
-            )
-
-        cells_html += f'<div class="{cell_class}">{cell_inner}</div>'
-
-full_html = header_html + cells_html + "</div></div>"
-st.markdown(full_html, unsafe_allow_html=True)
-
-# ── 이번 달 경기 요약 테이블 ────────────────────────────────
-st.markdown("---")
-st.markdown("### 📋 이번 달 경기 티켓팅 상세")
-
-month_games = [
-    (m, d, g)
-    for (m, d), games in SCHEDULE.items()
-    for g in games
-    if m == sel_month
-]
-month_games.sort(key=lambda x: x[1])
-
-if not month_games:
-    st.info("이번 달 경기가 없습니다.")
-else:
-    col_headers = ["날짜", "홈/원정", "상대팀", "구장", "선예매 오픈", "예매 시간", "예매 링크"]
-    rows = []
-    for m, d, g in month_games:
-        opp = g["opp"]
-        loc = g["loc"]
-        hot_mark = " 🔥" if g["hot"] else ""
-        ti = get_ticket_info(g)
-        dow = ["월","화","수","목","금","토","일"][date(2026, m, d).weekday()]
-        date_str = f"{m}/{d}({dow}){hot_mark}"
-        venue = ti["venue"] if ti else "-"
-        url = ti["url"] if ti else "#"
-        url_label = ti["url_label"] if ti else "-"
-
-        if loc == "홈":
-            presale = calc_presale_date(m, d) + " 오전 10:00"
-            open_time = "오전 10:00"
-        else:
-            presale = calc_away_presale_date(m, d, opp)
-            if opp == "롯데":
-                presale += " 오전 10:00 (선예매)\n" + calc_away_presale_date(m, d, opp).replace("오전", "") + " 오후 14:00 (일반)"
-                open_time = "선 10:00 / 일반 14:00"
-                presale = calc_away_presale_date(m, d, opp) + " (오전 10:00)"
-            else:
-                presale += " (오전 10:00 추정)"
-                open_time = "오전 10:00 추정"
-
-        rows.append({
-            "날짜": date_str,
-            "홈/원정": loc,
-            "상대팀": opp,
-            "구장": venue,
-            "선예매 오픈": presale,
-            "예매 시간": open_time,
-            "예매처": f"[{url_label}]({url})",
-        })
-
-    # 홈/원정 필터
-    filter_col1, filter_col2, filter_col3 = st.columns([1, 1, 4])
-    with filter_col1:
-        show_home = st.checkbox("홈 경기", value=True)
-    with filter_col2:
-        show_away = st.checkbox("원정 경기", value=True)
-
-    filtered = [r for r in rows if
-                (r["홈/원정"] == "홈" and show_home) or
-                (r["홈/원정"] == "원정" and show_away)]
-
-    if filtered:
-        import pandas as pd
-        df = pd.DataFrame(filtered)
-        # 홈/원정 열 스타일링
-        def style_row(row):
-            if row["홈/원정"] == "홈":
-                return ["background-color: #fff0ee"] * len(row)
-            else:
-                return ["background-color: #eef3ff"] * len(row)
-
-        st.dataframe(
-            df.drop(columns=["홈/원정"]),
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "예매처": st.column_config.LinkColumn("예매처", display_text="→ 예매하기"),
-            }
+    for month_num, month_name in MONTHS.items():
+        gc = count_games(month_num)
+        is_active = st.session_state.sel_month == month_num
+        btn_style = (
+            "background:#CC0000;border-color:#CC0000;color:#ffffff;font-weight:700;"
+            if is_active
+            else "background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.15);color:#cccccc;"
         )
-    else:
-        st.info("선택한 필터에 해당하는 경기가 없습니다.")
+        label_html = (
+            '<div style="display:flex;justify-content:space-between;align-items:center;">'
+            '<span style="font-size:17px;font-weight:700;">{mn}</span>'
+            '<span style="font-size:11px;opacity:0.75;">경기 {gc}개</span>'
+            "</div>"
+        ).format(mn=month_name, gc=gc)
 
-# ── 구단별 예매처 안내 ────────────────────────────────────
+        clicked = st.button(
+            month_name + "  (" + str(gc) + "경기)",
+            key="sidebar_btn_{m}".format(m=month_num),
+            use_container_width=True,
+            type="primary" if is_active else "secondary",
+        )
+        if clicked:
+            st.session_state.sel_month = month_num
+            st.rerun()
+
+    st.markdown(
+        '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.15);margin:14px 0 12px;">',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div style="font-size:12px;color:#aaaaaa;line-height:1.8;padding:0 4px;">'
+        '<div style="color:#ffffff;font-weight:600;margin-bottom:6px;">배티 선예매 안내</div>'
+        "경기 <b style='color:#ffcccc;'>7일 전</b> 오전 10:00<br>"
+        "SSG 공식 앱 / ticket.ssg.com<br>"
+        '<br><div style="color:#ffffff;font-weight:600;margin-bottom:4px;">범례</div>'
+        '<span style="display:inline-block;width:10px;height:10px;'
+        'background:#fff0ee;border-left:3px solid #CC0000;'
+        'vertical-align:middle;margin-right:4px;"></span>홈경기<br>'
+        '<span style="display:inline-block;width:10px;height:10px;'
+        'background:#eef3ff;border-left:3px solid #1a56db;'
+        'vertical-align:middle;margin-right:4px;"></span>원정경기<br>'
+        "🔥 주말 / 빅매치"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+# ── 메인 컨텐츠 ──────────────────────────────────────────────
+sel = st.session_state.sel_month
+sel_label = MONTHS[sel]
+
+st.markdown(
+    '<h1 style="color:#CC0000;margin-bottom:2px;font-size:26px;">'
+    "⚾ SSG 랜더스 2026 — {m} 경기 일정</h1>"
+    '<p style="color:#888;font-size:13px;margin-top:0;">'
+    "경기 뱃지를 클릭하면 티켓팅 사이트로 이동합니다 | 배티 회원 기준</p>".format(m=sel_label),
+    unsafe_allow_html=True,
+)
+
+# 달력
+cal_html = render_calendar_html(sel)
+num_weeks = len(calendar.monthcalendar(2026, sel))
+cal_height = 60 + num_weeks * 95
+st.components.v1.html(cal_html, height=cal_height, scrolling=False)
+
+# ── 티켓팅 상세 테이블 ────────────────────────────────────────
+st.markdown("---")
+st.markdown("#### 📋 {m} 티켓팅 상세".format(m=sel_label))
+
+col_f1, col_f2, _ = st.columns([1, 1, 6])
+with col_f1:
+    show_home = st.checkbox("홈", value=True, key="fh_{m}".format(m=sel))
+with col_f2:
+    show_away = st.checkbox("원정", value=True, key="fa_{m}".format(m=sel))
+
+month_games = sorted(
+    [
+        (d, g)
+        for (mm, d), gs in SCHEDULE.items()
+        for g in gs
+        if mm == sel
+    ],
+    key=lambda x: x[0],
+)
+
+rows = []
+for day, g in month_games:
+    loc = g["loc"]
+    opp = g["opp"]
+    if loc == "홈" and not show_home:
+        continue
+    if loc == "원정" and not show_away:
+        continue
+
+    dow = DOW_KR[date(2026, sel, day).weekday()]
+    hot_str = " 🔥" if g["hot"] else ""
+    date_str = "{m}/{d}({w}){h}".format(m=sel, d=day, w=dow, h=hot_str)
+    ti_key = "홈" if loc == "홈" else opp
+    ti = TICKET_INFO.get(ti_key, {})
+    presale = presale_date_str(sel, day, ti_key)
+
+    rows.append({
+        "날짜":        date_str,
+        "홈/원정":     loc,
+        "상대팀":      opp,
+        "구장":        ti.get("venue", "-"),
+        "선예매 오픈일": presale,
+        "오픈 시간":   ti.get("presale_time", "-"),
+        "예매 링크":   ti.get("url", "#"),
+    })
+
+if rows:
+    df = pd.DataFrame(rows)
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "예매 링크": st.column_config.LinkColumn(
+                "예매 링크", display_text="→ 예매하기"
+            )
+        },
+    )
+else:
+    st.info("선택한 필터에 해당하는 경기가 없습니다.")
+
+# ── 원정 구단별 예매처 ──────────────────────────────────────
+st.markdown("---")
 with st.expander("🏟️ 구단별 원정 예매처 전체 안내"):
     cols = st.columns(3)
-    teams_list = [t for t in TICKET_INFO.keys() if t != "홈"]
-    for i, team in enumerate(teams_list):
-        info = TICKET_INFO[team]
+    away_teams = [t for t in TICKET_INFO if t != "홈"]
+    for i, team in enumerate(away_teams):
+        ti = TICKET_INFO[team]
         with cols[i % 3]:
-            st.markdown(f"""
-**{team}** — {info['venue']}
+            st.markdown(
+                "**{t}** | {v}\n\n"
+                "- 예매 오픈: `{pt}`\n"
+                "- [{ul}]({url})\n".format(
+                    t=team,
+                    v=ti["venue"],
+                    pt=ti["presale_time"],
+                    ul=ti["url_label"],
+                    url=ti["url"],
+                )
+            )
 
-- 선예매: {info['선예매']}
-- 일반예매: {info['일반예매']}
-- 예매: [{info['url_label']}]({info['url']})
-""")
-
-st.markdown("---")
-st.caption("⚠️ 경기 일정은 우천 취소 등으로 변경될 수 있습니다. 티켓팅 오픈 시간은 롯데 외 구단의 경우 공식 공지 기준으로 변동될 수 있으니 각 구단 SNS를 확인하세요.")
+st.caption(
+    "⚠️ 경기 일정은 우천 등으로 변경될 수 있습니다. "
+    "롯데 외 구단의 예매 오픈 시간은 추정값이며, 각 구단 공식 SNS를 반드시 확인하세요."
+)
