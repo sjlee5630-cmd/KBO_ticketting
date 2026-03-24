@@ -12,50 +12,73 @@ st.set_page_config(
 # ── 전역 CSS ─────────────────────────────────────────────────
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+
 /* 사이드바 배경 */
 [data-testid="stSidebar"] {
-    background: #1a1a2e !important;
+    background: #12131f !important;
+    font-family: 'Noto Sans KR', sans-serif !important;
 }
 [data-testid="stSidebar"] * {
     color: #ffffff !important;
+    font-family: 'Noto Sans KR', sans-serif !important;
 }
 
-/* 사이드바 월 버튼 공통 */
-.month-btn {
-    display: block;
-    width: 100%;
-    padding: 10px 16px;
-    margin-bottom: 6px;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 500;
-    text-align: left;
-    cursor: pointer;
-    border: 1.5px solid rgba(255,255,255,0.15);
-    background: rgba(255,255,255,0.06);
-    color: #cccccc !important;
-    transition: all 0.15s;
+/* 사이드바 내부 패딩 줄이기 */
+[data-testid="stSidebarContent"] {
+    padding: 0 12px !important;
 }
-.month-btn:hover {
-    background: rgba(255,255,255,0.12);
+
+/* Streamlit 버튼 기본 스타일 완전 덮어쓰기 */
+[data-testid="stSidebar"] .stButton > button {
+    width: 100% !important;
+    border-radius: 10px !important;
+    padding: 12px 16px !important;
+    margin-bottom: 5px !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    font-family: 'Noto Sans KR', sans-serif !important;
+    text-align: left !important;
+    border: 1.5px solid rgba(255,255,255,0.12) !important;
+    background: rgba(255,255,255,0.05) !important;
+    color: #b0b8cc !important;
+    transition: all 0.18s ease !important;
+    box-shadow: none !important;
+    letter-spacing: 0.3px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    cursor: pointer !important;
+    line-height: 1.3 !important;
+}
+
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(255,255,255,0.10) !important;
+    border-color: rgba(255,255,255,0.25) !important;
     color: #ffffff !important;
+    transform: translateX(2px) !important;
 }
-.month-btn.active {
+
+[data-testid="stSidebar"] .stButton > button:focus {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* 활성(primary) 버튼 */
+[data-testid="stSidebar"] .stButton > button[kind="primary"] {
     background: #CC0000 !important;
     border-color: #CC0000 !important;
     color: #ffffff !important;
-    font-weight: 700;
+    font-weight: 800 !important;
+    font-size: 15px !important;
+    box-shadow: 0 4px 14px rgba(204,0,0,0.35) !important;
+    transform: none !important;
 }
-.month-btn .month-num {
-    font-size: 18px;
-    font-weight: 700;
-    margin-right: 6px;
-}
-.month-btn .game-count {
-    float: right;
-    font-size: 11px;
-    opacity: 0.75;
-    margin-top: 2px;
+
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+    background: #e60000 !important;
+    border-color: #e60000 !important;
+    transform: translateX(2px) !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -358,13 +381,29 @@ def presale_date_str(m, d, ti_key):
 
 
 # ── 달력 HTML ────────────────────────────────────────────────
+def make_sunday_first_cal(year, month):
+    """일요일 시작 달력 생성 (calendar.monthcalendar는 월요일 시작이므로 변환)"""
+    import datetime
+    cal_mon = calendar.monthcalendar(year, month)
+    # 각 주를 [일,월,화,수,목,금,토] 순으로 재배열
+    # monthcalendar: [월,화,수,목,금,토,일] -> 마지막(일)을 맨 앞으로
+    weeks_sun = []
+    for week in cal_mon:
+        sun = week[6]  # 일요일
+        new_week = [sun] + week[:6]  # 일,월,화,수,목,금,토
+        weeks_sun.append(new_week)
+    # 첫 주 앞에 일요일이 없는데 이전 달 날짜로 채워진 경우 처리
+    # 마지막 주도 동일하게 확인
+    return weeks_sun
+
 def render_calendar_html(month):
-    cal = calendar.monthcalendar(2026, month)
-    dow_labels = DOW_KR
+    cal = make_sunday_first_cal(2026, month)
+    # 일요일 시작 헤더: 일,월,화,수,목,금,토
+    dow_labels_sun = ["일", "월", "화", "수", "목", "금", "토"]
 
     header_cells = ""
-    for i, label in enumerate(dow_labels):
-        txt_color = "#ffaaaa" if i == 6 else ("#aaccff" if i == 5 else "white")
+    for i, label in enumerate(dow_labels_sun):
+        txt_color = "#ffaaaa" if i == 0 else ("#aaccff" if i == 6 else "white")
         header_cells += (
             '<th style="background:#CC0000;color:{c};padding:10px 4px;'
             'font-size:13px;font-weight:600;text-align:center;letter-spacing:1px;">'
@@ -382,8 +421,8 @@ def render_calendar_html(month):
                 )
                 continue
 
-            is_sun = wi == 6
-            is_sat = wi == 5
+            is_sun = wi == 0
+            is_sat = wi == 6
             num_color = "#cc0000" if is_sun else ("#1a56db" if is_sat else "#1a1a1a")
             cell_bg = "#fffaf9" if is_sun else ("#f5f8ff" if is_sat else "#ffffff")
 
@@ -403,20 +442,33 @@ def render_calendar_html(month):
             for g in SCHEDULE.get((month, day), []):
                 opp = g["opp"]
                 loc = g["loc"]
-                hot_str = " 🔥" if g["hot"] else ""
                 ti_key = "홈" if loc == "홈" else opp
                 url = TICKET_INFO.get(ti_key, {}).get("url", "#")
 
-                if loc == "홈":
+                # 강조 조건 판별
+                is_weekend_home = loc == "홈" and (is_sat or is_sun)
+                is_jamsil = loc == "원정" and opp in ("LG", "두산")
+
+                if is_weekend_home:
+                    bg = "#fff8e1"
+                    border = "#f59e0b"
+                    color = "#7a4f00"
+                    label = "⭐ 홈 vs {o}  주말홈".format(o=opp)
+                elif is_jamsil:
+                    bg = "#f3e8ff"
+                    border = "#7c3aed"
+                    color = "#4c1d95"
+                    label = "🗼 원정 @{o}  잠실".format(o=opp)
+                elif loc == "홈":
                     bg = "#fff0ee"
                     border = "#CC0000"
                     color = "#7a0000"
-                    label = "홈 vs {o}{h}".format(o=opp, h=hot_str)
+                    label = "홈 vs {o}".format(o=opp)
                 else:
                     bg = "#eef3ff"
                     border = "#1a56db"
                     color = "#1a3a7a"
-                    label = "원정 @{o}{h}".format(o=opp, h=hot_str)
+                    label = "원정 @{o}".format(o=opp)
 
                 inner += (
                     '<a href="{url}" target="_blank" '
@@ -454,41 +506,33 @@ if "sel_month" not in st.session_state:
 # ── 사이드바 ────────────────────────────────────────────────
 with st.sidebar:
     st.markdown(
-        '<div style="text-align:center;padding:16px 0 8px;">'
-        '<div style="font-size:32px;">⚾</div>'
-        '<div style="font-size:17px;font-weight:700;color:#ffffff;margin-top:4px;">'
+        '<div style="text-align:center;padding:20px 0 10px;">'
+        '<div style="font-size:36px;line-height:1;">⚾</div>'
+        '<div style="font-size:18px;font-weight:900;color:#ffffff;margin-top:6px;letter-spacing:1px;">'
         "SSG 랜더스</div>"
-        '<div style="font-size:12px;color:#aaaaaa;margin-top:2px;">2026 시즌 일정</div>'
+        '<div style="font-size:11px;color:#888;margin-top:3px;letter-spacing:2px;">2026 SEASON</div>'
         "</div>",
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.15);margin:8px 0 14px;">',
+        '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.10);margin:6px 0 14px;">',
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div style="font-size:11px;color:#aaaaaa;letter-spacing:1px;'
-        'margin-bottom:10px;padding-left:4px;">월 선택</div>',
+        '<div style="font-size:10px;color:#666;letter-spacing:2px;'
+        'margin-bottom:8px;padding-left:2px;text-transform:uppercase;">월 선택</div>',
         unsafe_allow_html=True,
     )
 
     for month_num, month_name in MONTHS.items():
         gc = count_games(month_num)
         is_active = st.session_state.sel_month == month_num
-        btn_style = (
-            "background:#CC0000;border-color:#CC0000;color:#ffffff;font-weight:700;"
-            if is_active
-            else "background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.15);color:#cccccc;"
-        )
-        label_html = (
-            '<div style="display:flex;justify-content:space-between;align-items:center;">'
-            '<span style="font-size:17px;font-weight:700;">{mn}</span>'
-            '<span style="font-size:11px;opacity:0.75;">경기 {gc}개</span>'
-            "</div>"
-        ).format(mn=month_name, gc=gc)
+
+        # 버튼 텍스트: 월 이름 왼쪽, 경기수 오른쪽 (공백 패딩으로 구분)
+        btn_label = "{mn}   {gc}경기".format(mn=month_name, gc=gc)
 
         clicked = st.button(
-            month_name + "  (" + str(gc) + "경기)",
+            btn_label,
             key="sidebar_btn_{m}".format(m=month_num),
             use_container_width=True,
             type="primary" if is_active else "secondary",
@@ -513,7 +557,12 @@ with st.sidebar:
         '<span style="display:inline-block;width:10px;height:10px;'
         'background:#eef3ff;border-left:3px solid #1a56db;'
         'vertical-align:middle;margin-right:4px;"></span>원정경기<br>'
-        "🔥 주말 / 빅매치"
+        '<span style="display:inline-block;width:10px;height:10px;'
+        'background:#fffbe6;border-left:3px solid #f59e0b;'
+        'vertical-align:middle;margin-right:4px;"></span>주말홈경기<br>'
+        '<span style="display:inline-block;width:10px;height:10px;'
+        'background:#f5f0ff;border-left:3px solid #7c3aed;'
+        'vertical-align:middle;margin-right:4px;"></span>잠실원정(LG·두산)'
         "</div>",
         unsafe_allow_html=True,
     )
@@ -566,27 +615,49 @@ for day, g in month_games:
     if loc == "원정" and not show_away:
         continue
 
-    dow = DOW_KR[date(2026, sel, day).weekday()]
-    hot_str = " 🔥" if g["hot"] else ""
-    date_str = "{m}/{d}({w}){h}".format(m=sel, d=day, w=dow, h=hot_str)
+    weekday_num = date(2026, sel, day).weekday()
+    is_weekend = weekday_num >= 5
+    dow = DOW_KR[weekday_num]
+    date_str = "{m}/{d}({w})".format(m=sel, d=day, w=dow)
     ti_key = "홈" if loc == "홈" else opp
     ti = TICKET_INFO.get(ti_key, {})
     presale = presale_date_str(sel, day, ti_key)
 
+    is_weekend_home = loc == "홈" and is_weekend
+    is_jamsil = loc == "원정" and opp in ("LG", "두산")
+
+    if is_weekend_home:
+        highlight = "⭐ 주말홈"
+    elif is_jamsil:
+        highlight = "🗼 잠실"
+    else:
+        highlight = ""
+
     rows.append({
-        "날짜":        date_str,
-        "홈/원정":     loc,
-        "상대팀":      opp,
-        "구장":        ti.get("venue", "-"),
+        "날짜":         date_str,
+        "홈/원정":      loc,
+        "상대팀":       opp,
+        "강조":         highlight,
+        "구장":         ti.get("venue", "-"),
         "선예매 오픈일": presale,
-        "오픈 시간":   ti.get("presale_time", "-"),
-        "예매 링크":   ti.get("url", "#"),
+        "오픈 시간":    ti.get("presale_time", "-"),
+        "예매 링크":    ti.get("url", "#"),
     })
 
 if rows:
     df = pd.DataFrame(rows)
+
+    def highlight_rows(row):
+        if row["강조"] == "⭐ 주말홈":
+            return ["background-color: #fffbe6; color: #7a4f00"] * len(row)
+        elif row["강조"] == "🗼 잠실":
+            return ["background-color: #f5f0ff; color: #4c1d95"] * len(row)
+        return [""] * len(row)
+
+    styled_df = df.style.apply(highlight_rows, axis=1)
+
     st.dataframe(
-        df,
+        styled_df,
         use_container_width=True,
         hide_index=True,
         column_config={
