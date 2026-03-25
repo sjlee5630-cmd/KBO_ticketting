@@ -12,50 +12,70 @@ st.set_page_config(
 # ── 전역 CSS ─────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* 사이드바 배경 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+
 [data-testid="stSidebar"] {
-    background: #1a1a2e !important;
+    background: #12131f !important;
 }
-[data-testid="stSidebar"] * {
-    color: #ffffff !important;
+[data-testid="stSidebar"] > div:first-child {
+    padding-top: 0 !important;
 }
 
-/* 사이드바 월 버튼 공통 */
-.month-btn {
-    display: block;
-    width: 100%;
-    padding: 10px 16px;
-    margin-bottom: 6px;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 500;
-    text-align: left;
-    cursor: pointer;
-    border: 1.5px solid rgba(255,255,255,0.15);
-    background: rgba(255,255,255,0.06);
-    color: #cccccc !important;
-    transition: all 0.15s;
+/* st.button 완전 덮어쓰기 */
+[data-testid="stSidebar"] button[kind="secondary"] {
+    width: 100% !important;
+    border-radius: 10px !important;
+    padding: 13px 16px !important;
+    margin-bottom: 5px !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    font-family: 'Noto Sans KR', sans-serif !important;
+    border: 1.5px solid #2e3a55 !important;
+    background: #1c2035 !important;
+    color: #c8cfe0 !important;
+    transition: all 0.15s !important;
+    box-shadow: none !important;
 }
-.month-btn:hover {
-    background: rgba(255,255,255,0.12);
+[data-testid="stSidebar"] button[kind="secondary"]:hover {
+    background: #242840 !important;
+    border-color: #4a5578 !important;
     color: #ffffff !important;
 }
-.month-btn.active {
+[data-testid="stSidebar"] button[kind="primary"] {
+    width: 100% !important;
+    border-radius: 10px !important;
+    padding: 13px 16px !important;
+    margin-bottom: 5px !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    font-family: 'Noto Sans KR', sans-serif !important;
     background: #CC0000 !important;
-    border-color: #CC0000 !important;
+    border: 1.5px solid #CC0000 !important;
     color: #ffffff !important;
-    font-weight: 700;
+    box-shadow: 0 4px 15px rgba(204,0,0,0.4) !important;
 }
-.month-btn .month-num {
-    font-size: 18px;
-    font-weight: 700;
-    margin-right: 6px;
+[data-testid="stSidebar"] button[kind="primary"]:hover {
+    background: #e60000 !important;
+    border-color: #e60000 !important;
 }
-.month-btn .game-count {
-    float: right;
-    font-size: 11px;
-    opacity: 0.75;
-    margin-top: 2px;
+[data-testid="stSidebar"] button:focus,
+[data-testid="stSidebar"] button:focus-visible {
+    box-shadow: none !important;
+    outline: none !important;
+}
+/* 버튼 내부 p태그 색상 강제 */
+[data-testid="stSidebar"] button[kind="secondary"] p {
+    color: #c8cfe0 !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+}
+[data-testid="stSidebar"] button[kind="primary"] p {
+    color: #ffffff !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+}
+[data-testid="stSidebar"] * {
+    font-family: 'Noto Sans KR', sans-serif !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -489,20 +509,9 @@ with st.sidebar:
     for month_num, month_name in MONTHS.items():
         gc = count_games(month_num)
         is_active = st.session_state.sel_month == month_num
-        btn_style = (
-            "background:#CC0000;border-color:#CC0000;color:#ffffff;font-weight:700;"
-            if is_active
-            else "background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.15);color:#cccccc;"
-        )
-        label_html = (
-            '<div style="display:flex;justify-content:space-between;align-items:center;">'
-            '<span style="font-size:17px;font-weight:700;">{mn}</span>'
-            '<span style="font-size:11px;opacity:0.75;">경기 {gc}개</span>'
-            "</div>"
-        ).format(mn=month_name, gc=gc)
-
+        label = "{mn}  ({gc}경기)".format(mn=month_name, gc=gc)
         clicked = st.button(
-            month_name + "  (" + str(gc) + "경기)",
+            label,
             key="sidebar_btn_{m}".format(m=month_num),
             use_container_width=True,
             type="primary" if is_active else "secondary",
